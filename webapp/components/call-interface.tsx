@@ -9,17 +9,25 @@ import FunctionCallsPanel from "@/components/function-calls-panel";
 import { Item } from "@/components/types";
 import handleRealtimeEvent from "@/lib/handle-realtime-event";
 import PhoneNumberChecklist from "@/components/phone-number-checklist";
+import RecordingsPanel from "@/components/recordings-panel";
+import OutboundCallPanel from "@/components/outbound-call-panel";
 
 const CallInterface = () => {
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState("");
-  const [allConfigsReady, setAllConfigsReady] = useState(false);
+  const [allConfigsReady, setAllConfigsReady] = useState(true); // Skip checklist
   const [items, setItems] = useState<Item[]>([]);
   const [callStatus, setCallStatus] = useState("disconnected");
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const [activeTab, setActiveTab] = useState<"functions" | "recordings" | "outbound">("recordings");
+  const [sessionConfig, setSessionConfig] = useState<any>({});
 
   useEffect(() => {
-    if (allConfigsReady && !ws) {
-      const newWs = new WebSocket("ws://localhost:8081/logs");
+    // Auto-connect without waiting for checklist
+    if (!ws) {
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8081";
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || "";
+      const wsUrlWithAuth = apiKey ? `${wsUrl}/logs?apiKey=${apiKey}` : `${wsUrl}/logs`;
+      const newWs = new WebSocket(wsUrlWithAuth);
 
       newWs.onopen = () => {
         console.log("Connected to logs websocket");
@@ -40,16 +48,11 @@ const CallInterface = () => {
 
       setWs(newWs);
     }
-  }, [allConfigsReady, ws]);
+  }, [ws]); // Removed allConfigsReady dependency
 
   return (
     <div className="h-screen bg-white flex flex-col">
-      <ChecklistAndConfig
-        ready={allConfigsReady}
-        setReady={setAllConfigsReady}
-        selectedPhoneNumber={selectedPhoneNumber}
-        setSelectedPhoneNumber={setSelectedPhoneNumber}
-      />
+      {/* Checklist disabled - auto-connecting */}
       <TopBar />
       <div className="flex-grow p-4 h-full overflow-hidden flex flex-col">
         <div className="grid grid-cols-12 gap-4 h-full">
@@ -58,6 +61,7 @@ const CallInterface = () => {
             <SessionConfigurationPanel
               callStatus={callStatus}
               onSave={(config) => {
+                setSessionConfig(config); // Store config for outbound calls
                 if (ws && ws.readyState === WebSocket.OPEN) {
                   const updateEvent = {
                     type: "session.update",
@@ -74,17 +78,61 @@ const CallInterface = () => {
 
           {/* Middle Column: Transcript */}
           <div className="col-span-6 flex flex-col gap-4 h-full overflow-hidden">
-            <PhoneNumberChecklist
-              selectedPhoneNumber={selectedPhoneNumber}
-              allConfigsReady={allConfigsReady}
-              setAllConfigsReady={setAllConfigsReady}
-            />
+            {/* PhoneNumberChecklist removed - auto-connecting */}
             <Transcript items={items} />
           </div>
 
-          {/* Right Column: Function Calls */}
+          {/* Right Column: Tabbed Panel */}
           <div className="col-span-3 flex flex-col h-full overflow-hidden">
-            <FunctionCallsPanel items={items} ws={ws} />
+            {/* Tab Buttons */}
+            <div className="flex gap-2 mb-3 border-b">
+              <button
+                onClick={() => setActiveTab("recordings")}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === "recordings"
+                    ? "text-blue-600 border-b-2 border-blue-600"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Recordings
+              </button>
+              <button
+                onClick={() => setActiveTab("outbound")}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === "outbound"
+                    ? "text-blue-600 border-b-2 border-blue-600"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Outbound Calls
+              </button>
+              <button
+                onClick={() => setActiveTab("functions")}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === "functions"
+                    ? "text-blue-600 border-b-2 border-blue-600"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Functions
+              </button>
+            </div>
+            
+            {/* Tab Content */}
+            <div className="flex-1 overflow-hidden">
+              {activeTab === "recordings" && (
+                <RecordingsPanel showAll={true} />
+              )}
+              {activeTab === "outbound" && (
+                <OutboundCallPanel 
+                  selectedPhoneNumber={selectedPhoneNumber}
+                  sessionConfig={sessionConfig}
+                />
+              )}
+              {activeTab === "functions" && (
+                <FunctionCallsPanel items={items} ws={ws} />
+              )}
+            </div>
           </div>
         </div>
       </div>

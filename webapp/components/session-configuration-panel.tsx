@@ -29,6 +29,10 @@ const SessionConfigurationPanel: React.FC<SessionConfigurationPanelProps> = ({
     "You are a helpful assistant in a phone call."
   );
   const [voice, setVoice] = useState("ash");
+  const [model, setModel] = useState("latest");
+  const [temperature, setTemperature] = useState(0.8);
+  const [maxResponseTokens, setMaxResponseTokens] = useState(4096);
+  const [enableTranscription, setEnableTranscription] = useState(true);
   const [tools, setTools] = useState<string[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingSchemaStr, setEditingSchemaStr] = useState("");
@@ -41,12 +45,13 @@ const SessionConfigurationPanel: React.FC<SessionConfigurationPanelProps> = ({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Custom hook to fetch backend tools every 3 seconds
-  const backendTools = useBackendTools("http://localhost:8081/tools", 3000);
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
+  const backendTools = useBackendTools(`${apiUrl}/tools`, 3000);
 
   // Track changes to determine if there are unsaved modifications
   useEffect(() => {
     setHasUnsavedChanges(true);
-  }, [instructions, voice, tools]);
+  }, [instructions, voice, tools, model, temperature, maxResponseTokens, enableTranscription]);
 
   // Reset save status after a delay when saved
   useEffect(() => {
@@ -64,6 +69,10 @@ const SessionConfigurationPanel: React.FC<SessionConfigurationPanelProps> = ({
       await onSave({
         instructions,
         voice,
+        model,
+        temperature,
+        max_response_output_tokens: maxResponseTokens === -1 ? "inf" : maxResponseTokens,
+        input_audio_transcription: enableTranscription ? { model: "whisper-1" } : undefined,
         tools: tools.map((tool) => JSON.parse(tool)),
       });
       setSaveStatus("saved");
@@ -188,19 +197,78 @@ const SessionConfigurationPanel: React.FC<SessionConfigurationPanelProps> = ({
             </div>
 
             <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Model</label>
+              <Select value={model} onValueChange={setModel}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="latest">Latest (June 2025)</SelectItem>
+                  <SelectItem value="december">December 2024</SelectItem>
+                  <SelectItem value="october">October 2024</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-medium leading-none">Voice</label>
               <Select value={voice} onValueChange={setVoice}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select voice" />
                 </SelectTrigger>
                 <SelectContent>
-                  {["ash", "ballad", "coral", "sage", "verse"].map((v) => (
+                  {["alloy", "echo", "shimmer", "ash", "ballad", "coral", "sage", "verse"].map((v) => (
                     <SelectItem key={v} value={v}>
                       {v}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Temperature</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  value={temperature}
+                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  className="flex-1"
+                />
+                <span className="text-sm text-muted-foreground w-10">{temperature}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Max Response Tokens</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="-1"
+                  max="16384"
+                  value={maxResponseTokens}
+                  onChange={(e) => setMaxResponseTokens(parseInt(e.target.value))}
+                  className="flex-1 px-3 py-2 border rounded-md"
+                  placeholder="-1 for unlimited"
+                />
+                <span className="text-xs text-muted-foreground">{maxResponseTokens === -1 ? "∞" : maxResponseTokens}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={enableTranscription}
+                  onChange={(e) => setEnableTranscription(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm font-medium">Enable Input Transcription</span>
+              </label>
+              <p className="text-xs text-muted-foreground">Transcribe user speech using Whisper</p>
             </div>
 
             <div className="space-y-2">

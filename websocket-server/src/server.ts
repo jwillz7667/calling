@@ -9,8 +9,23 @@ import cors from "cors";
 import {
   handleCallConnection,
   handleFrontendConnection,
+  getActiveSessions,
+  getSessionTranscriptions,
+  AVAILABLE_VOICES,
+  MODEL_VERSIONS,
 } from "./sessionManager";
 import functions from "./functionHandlers";
+import { getOutboundCallService } from "./outboundCaller";
+import { getRecordingManager } from "./recordingManager";
+import {
+  authenticateApiKey,
+  validateTwilioSignature,
+  rateLimit,
+  getCorsOptions,
+  authenticateWebSocket,
+  securityHeaders,
+  requestLogger
+} from "./middleware/auth";
 
 dotenv.config();
 
@@ -24,11 +39,19 @@ if (!OPENAI_API_KEY) {
 }
 
 const app = express();
-app.use(cors());
+
+// Apply security and logging middleware
+app.use(securityHeaders);
+app.use(requestLogger);
+app.use(cors(getCorsOptions()));
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
+
+// Apply rate limiting to all routes
+app.use(rateLimit(100, 60000)); // 100 requests per minute
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
-
-app.use(express.urlencoded({ extended: false }));
 
 const twimlPath = join(__dirname, "twiml.xml");
 const twimlTemplate = readFileSync(twimlPath, "utf-8");
@@ -37,7 +60,7 @@ app.get("/public-url", (req, res) => {
   res.json({ publicUrl: PUBLIC_URL });
 });
 
-app.all("/twiml", (req, res) => {
+app.all("/twiml", validateTwilioSignature, (req, res) => {
   const wsUrl = new URL(PUBLIC_URL);
   wsUrl.protocol = "wss:";
   wsUrl.pathname = `/call`;
@@ -46,9 +69,240 @@ app.all("/twiml", (req, res) => {
   res.type("text/xml").send(twimlContent);
 });
 
+// Outbound call TwiML endpoint
+app.all("/twiml-outbound", validateTwilioSignature, (req, res) => {
+  const { sessionId, to, direction, config: configBase64 } = req.query;
+  
+  // Parse configuration from base64
+  let config = {};
+  if (configBase64) {
+    try {
+      config = JSON.parse(Buffer.from(configBase64 as string, "base64").toString());
+    } catch (e) {
+      console.error("Failed to parse config:", e);
+    }
+  }
+  
+  const wsUrl = new URL(PUBLIC_URL);
+  wsUrl.protocol = "wss:";
+  wsUrl.pathname = `/call`;
+  wsUrl.searchParams.set("sessionId", sessionId as string);
+  wsUrl.searchParams.set("to", to as string);
+  wsUrl.searchParams.set("direction", direction as string);
+  wsUrl.searchParams.set("config", configBase64 as string);
+
+  console.log(`[TwiML] Generated WebSocket URL: ${wsUrl.toString()}`);
+  const twimlContent = twimlTemplate.replace("{{WS_URL}}", wsUrl.toString());
+  console.log(`[TwiML] Sending TwiML response for session ${sessionId}`);
+  res.type("text/xml").send(twimlContent);
+});
+
 // New endpoint to list available tools (schemas)
 app.get("/tools", (req, res) => {
   res.json(functions.map((f) => f.schema));
+});
+
+// API endpoint to initiate outbound calls
+app.post("/api/call/outbound", authenticateApiKey, async (req, res): Promise<void> => {
+  try {
+    const { to, from, instructions, voice, temperature, maxResponseOutputTokens, tools } = req.body;
+    
+    if (!to) {
+      res.status(400).json({ error: "'to' phone number is required" });
+      return;
+    }
+    
+    const outboundService = getOutboundCallService();
+    const result = await outboundService.makeCall({
+      to,
+      from,
+      instructions,
+      voice,
+      temperature,
+      maxResponseOutputTokens,
+      tools,
+    });
+    
+    res.json(result);
+  } catch (error: any) {
+    console.error("Outbound call error:", error);
+    res.status(500).json({ error: error.message || "Failed to initiate call" });
+  }
+});
+
+// Get call status
+app.get("/api/call/:callSid/status", authenticateApiKey, async (req, res): Promise<void> => {
+  try {
+    const { callSid } = req.params;
+    const outboundService = getOutboundCallService();
+    const status = await outboundService.getCallStatus(callSid);
+    
+    if (!status) {
+      res.status(404).json({ error: "Call not found" });
+      return;
+    }
+    
+    res.json(status);
+  } catch (error: any) {
+    console.error("Get call status error:", error);
+    res.status(500).json({ error: error.message || "Failed to get call status" });
+  }
+});
+
+// End a call
+app.post("/api/call/:callSid/end", authenticateApiKey, async (req, res) => {
+  try {
+    const { callSid } = req.params;
+    const outboundService = getOutboundCallService();
+    const success = await outboundService.endCall(callSid);
+    
+    res.json({ success });
+  } catch (error: any) {
+    console.error("End call error:", error);
+    res.status(500).json({ error: error.message || "Failed to end call" });
+  }
+});
+
+// List active calls
+app.get("/api/calls/active", authenticateApiKey, async (req, res) => {
+  try {
+    const outboundService = getOutboundCallService();
+    const calls = await outboundService.listActiveCalls();
+    res.json(calls);
+  } catch (error: any) {
+    console.error("List calls error:", error);
+    res.status(500).json({ error: error.message || "Failed to list calls" });
+  }
+});
+
+// Get available phone numbers
+app.get("/api/phone-numbers", authenticateApiKey, async (req, res) => {
+  try {
+    const outboundService = getOutboundCallService();
+    const numbers = await outboundService.getAvailablePhoneNumbers();
+    res.json(numbers);
+  } catch (error: any) {
+    console.error("Get phone numbers error:", error);
+    res.status(500).json({ error: error.message || "Failed to get phone numbers" });
+  }
+});
+
+// Get active sessions
+app.get("/api/sessions", authenticateApiKey, (req, res) => {
+  res.json(getActiveSessions());
+});
+
+// Get session transcriptions
+app.get("/api/sessions/:sessionId/transcriptions", authenticateApiKey, (req, res) => {
+  const { sessionId } = req.params;
+  res.json(getSessionTranscriptions(sessionId));
+});
+
+// Get available voices
+app.get("/api/voices", (req, res) => {
+  res.json(AVAILABLE_VOICES);
+});
+
+// Get model versions
+app.get("/api/models", (req, res) => {
+  res.json(MODEL_VERSIONS);
+});
+
+// Webhook endpoints for Twilio callbacks
+app.post("/call-status", validateTwilioSignature, (req, res) => {
+  console.log("Call status update:", req.body);
+  res.sendStatus(200);
+});
+
+app.post("/amd-status", validateTwilioSignature, (req, res) => {
+  console.log("AMD status:", req.body);
+  res.sendStatus(200);
+});
+
+// Recording status callback
+app.post("/recording-status", validateTwilioSignature, async (req, res) => {
+  console.log("Recording status:", req.body);
+  const recordingManager = getRecordingManager();
+  await recordingManager.handleRecordingStatus(req.body);
+  res.sendStatus(200);
+});
+
+// Get recordings for a call
+app.get("/api/call/:callSid/recordings", authenticateApiKey, async (req, res) => {
+  try {
+    const { callSid } = req.params;
+    const recordingManager = getRecordingManager();
+    const recordings = await recordingManager.getCallRecordings(callSid);
+    res.json(recordings);
+  } catch (error: any) {
+    console.error("Get recordings error:", error);
+    res.status(500).json({ error: error.message || "Failed to get recordings" });
+  }
+});
+
+// Get a specific recording
+app.get("/api/recording/:recordingSid", authenticateApiKey, async (req, res): Promise<void> => {
+  try {
+    const { recordingSid } = req.params;
+    const recordingManager = getRecordingManager();
+    const recording = await recordingManager.getRecording(recordingSid);
+    
+    if (!recording) {
+      res.status(404).json({ error: "Recording not found" });
+      return;
+    }
+    
+    res.json(recording);
+  } catch (error: any) {
+    console.error("Get recording error:", error);
+    res.status(500).json({ error: error.message || "Failed to get recording" });
+  }
+});
+
+// Stream recording audio for playback
+app.get("/api/recording/:recordingSid/audio", authenticateApiKey, (req, res): void => {
+  try {
+    const { recordingSid } = req.params;
+    const recordingManager = getRecordingManager();
+    const stream = recordingManager.getRecordingStream(recordingSid);
+    
+    if (!stream) {
+      res.status(404).json({ error: "Recording audio not found" });
+      return;
+    }
+    
+    res.setHeader("Content-Type", "audio/mpeg");
+    stream.pipe(res);
+  } catch (error: any) {
+    console.error("Stream recording error:", error);
+    res.status(500).json({ error: error.message || "Failed to stream recording" });
+  }
+});
+
+// Delete a recording
+app.delete("/api/recording/:recordingSid", authenticateApiKey, async (req, res) => {
+  try {
+    const { recordingSid } = req.params;
+    const recordingManager = getRecordingManager();
+    const success = await recordingManager.deleteRecording(recordingSid);
+    
+    res.json({ success });
+  } catch (error: any) {
+    console.error("Delete recording error:", error);
+    res.status(500).json({ error: error.message || "Failed to delete recording" });
+  }
+});
+
+// Get all recordings
+app.get("/api/recordings", authenticateApiKey, (req, res) => {
+  try {
+    const recordingManager = getRecordingManager();
+    const recordings = recordingManager.getAllRecordings();
+    res.json(recordings);
+  } catch (error: any) {
+    console.error("Get all recordings error:", error);
+    res.status(500).json({ error: error.message || "Failed to get recordings" });
+  }
 });
 
 let currentCall: WebSocket | null = null;
@@ -57,18 +311,45 @@ let currentLogs: WebSocket | null = null;
 wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
   const url = new URL(req.url || "", `http://${req.headers.host}`);
   const parts = url.pathname.split("/").filter(Boolean);
-
+  
   if (parts.length < 1) {
     ws.close();
     return;
   }
 
   const type = parts[0];
+  
+  // Authenticate WebSocket connections (except for Twilio calls)
+  if (type === "logs" && !authenticateWebSocket(req.url || "")) {
+    ws.close(1008, "Unauthorized");
+    return;
+  }
 
   if (type === "call") {
+    console.log(`[WebSocket] New call connection received`);
+    const query = url.searchParams;
+    const sessionId = query.get("sessionId") || undefined;
+    const to = query.get("to") || undefined;
+    const direction = (query.get("direction") as "inbound" | "outbound") || "inbound";
+    const configBase64 = query.get("config") || undefined;
+    
+    console.log(`[WebSocket] Call params - sessionId: ${sessionId}, to: ${to}, direction: ${direction}`);
+    
+    let config: any = {};
+    if (configBase64) {
+      try {
+        config = JSON.parse(Buffer.from(configBase64, "base64").toString());
+        console.log(`[WebSocket] Parsed config:`, config);
+      } catch (e) {
+        console.error("Failed to parse config:", e);
+      }
+    }
+    
     if (currentCall) currentCall.close();
     currentCall = ws;
-    handleCallConnection(currentCall, OPENAI_API_KEY);
+    console.log(`[WebSocket] Calling handleCallConnection with config`);
+    // Pass configuration directly to handleCallConnection
+    handleCallConnection(currentCall, OPENAI_API_KEY, sessionId, to, direction, config);
   } else if (type === "logs") {
     if (currentLogs) currentLogs.close();
     currentLogs = ws;
