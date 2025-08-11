@@ -1,5 +1,0 @@
-{
-  "root": "webapp",
-  "framework": "nextjs",
-  "regions": ["iad1"]
-}
