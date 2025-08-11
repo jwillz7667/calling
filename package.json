@@ -1,0 +1,14 @@
+{
+  "name": "openai-realtime-twilio-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install": "cd websocket-server && npm install",
+    "build": "cd websocket-server && npm run build",
+    "start": "cd websocket-server && npm start",
+    "dev": "cd websocket-server && npm run dev"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
