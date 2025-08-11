@@ -6,9 +6,3 @@ buildCommand = "cd websocket-server && npm install && npm run build"
 startCommand = "cd websocket-server && npm start"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
-restartPolicyType = "on-failure"
-restartPolicyMaxRetries = 3
-
-[[services]]
-name = "websocket-server"
-root = "websocket-server"
