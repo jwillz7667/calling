@@ -5,5 +5,3 @@ buildCommand = "cd websocket-server && npm install && npm run build"
 [deploy]
 startCommand = "cd websocket-server && node dist/server.js"
 port = 8081
-healthcheckPath = "/health"
-healthcheckTimeout = 300
