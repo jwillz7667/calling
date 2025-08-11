@@ -51,10 +51,38 @@ if (!OPENAI_API_KEY) {
 
 const app = express();
 
+// Apply CORS first - this is critical for preflight requests
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    // In production, allow specific origins
+    const allowedOrigins = [
+      'https://verbio.app',
+      'https://www.verbio.app', 
+      'https://calling.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:3001'
+    ];
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(null, false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
 // Apply security and logging middleware
 app.use(securityHeaders);
 app.use(requestLogger);
-app.use(cors(getCorsOptions()));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
@@ -114,6 +142,10 @@ app.all("/twiml-outbound", validateTwilioSignature, (req, res) => {
 });
 
 // New endpoint to list available tools (schemas)
+app.options("/tools", (req, res) => {
+  res.sendStatus(204);
+});
+
 app.get("/tools", (req, res) => {
   res.json(functions.map((f) => f.schema));
 });
