@@ -27,14 +27,25 @@ import {
   requestLogger
 } from "./middleware/auth";
 
+// Load environment variables
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || "8081", 10);
 const PUBLIC_URL = process.env.PUBLIC_URL || "";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 
+// Debug logging for Railway
+console.log("=== Environment Configuration ===");
+console.log("PORT:", PORT);
+console.log("PUBLIC_URL:", PUBLIC_URL || "Not set");
+console.log("OPENAI_API_KEY:", OPENAI_API_KEY ? `${OPENAI_API_KEY.substring(0, 10)}...` : "NOT SET");
+console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("================================");
+
 if (!OPENAI_API_KEY) {
-  console.error("OPENAI_API_KEY environment variable is required");
+  console.error("\n❌ OPENAI_API_KEY environment variable is required");
+  console.error("Set it in Railway dashboard under Variables tab");
+  console.error("Exiting...");
   process.exit(1);
 }
 
