@@ -52,7 +52,12 @@ const OutboundCallPanel: React.FC<OutboundCallPanelProps> = ({
   const fetchAvailableNumbers = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
-      const response = await fetch(`${apiUrl}/api/phone-numbers`);
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || "";
+      const response = await fetch(`${apiUrl}/api/phone-numbers`, {
+        headers: {
+          "X-API-Key": apiKey,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setAvailableNumbers(data.map((n: any) => n.phoneNumber));
@@ -65,7 +70,12 @@ const OutboundCallPanel: React.FC<OutboundCallPanelProps> = ({
   const fetchActiveCalls = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
-      const response = await fetch(`${apiUrl}/api/calls/active`);
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || "";
+      const response = await fetch(`${apiUrl}/api/calls/active`, {
+        headers: {
+          "X-API-Key": apiKey,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setActiveCalls(data);
@@ -106,10 +116,12 @@ const OutboundCallPanel: React.FC<OutboundCallPanelProps> = ({
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || "";
       const response = await fetch(`${apiUrl}/api/call/outbound`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-API-Key": apiKey,
         },
         body: JSON.stringify({
           to: formattedTo,
