@@ -93,7 +93,8 @@ app.use(express.json());
 app.use(rateLimit(100, 60000)); // 100 requests per minute
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: "/" });
+// Accept WebSocket upgrades on all paths and route by pathname inside 'connection'
+const wss = new WebSocketServer({ server });
 
 const twimlPath = join(__dirname, "twiml.xml");
 const twimlTemplate = readFileSync(twimlPath, "utf-8");
