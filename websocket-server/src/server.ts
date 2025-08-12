@@ -91,22 +91,7 @@ app.use(express.json());
 app.use(rateLimit(100, 60000)); // 100 requests per minute
 
 const server = http.createServer(app);
-
-// Add explicit WebSocket path handling
-server.on('upgrade', (request, socket, head) => {
-  const pathname = request.url ? new URL(request.url, `http://${request.headers.host}`).pathname : '';
-  console.log(`[Upgrade] WebSocket upgrade request for path: ${pathname}`);
-  
-  if (pathname === '/call' || pathname === '/logs' || pathname.startsWith('/call') || pathname.startsWith('/logs')) {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request);
-    });
-  } else {
-    socket.destroy();
-  }
-});
-
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ server, path: "/" });
 
 const twimlPath = join(__dirname, "twiml.xml");
 const twimlTemplate = readFileSync(twimlPath, "utf-8");
