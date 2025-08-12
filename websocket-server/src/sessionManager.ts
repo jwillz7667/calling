@@ -371,6 +371,15 @@ function tryConnectModel(sessionId: string) {
 
   session.modelConn.on("error", (error) => {
     console.error(`[OpenAI] WebSocket error for session ${sessionId}:`, error);
+    console.error(`[OpenAI] Error details:`, {
+      message: error.message,
+      code: (error as any).code,
+      statusCode: (error as any).statusCode
+    });
+  });
+
+  session.modelConn.on("close", (code, reason) => {
+    console.log(`[OpenAI] WebSocket closed for session ${sessionId}. Code: ${code}, Reason: ${reason}`);
   });
 
   session.modelConn.on("open", () => {

@@ -100,6 +100,55 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "healthy", timestamp: new Date().toISOString() });
 });
 
+// Test OpenAI connection endpoint
+app.get("/test-openai", authenticateApiKey, async (req, res) => {
+  console.log("[Test] Testing OpenAI connection...");
+  console.log("[Test] API Key present:", !!OPENAI_API_KEY);
+  console.log("[Test] API Key prefix:", OPENAI_API_KEY?.substring(0, 20));
+  
+  const testWs = new WebSocket(
+    `wss://api.openai.com/v1/realtime?model=${MODEL_VERSIONS.latest}`,
+    {
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "OpenAI-Beta": "realtime=v1",
+      },
+    }
+  );
+
+  testWs.on("open", () => {
+    console.log("[Test] OpenAI WebSocket opened successfully");
+    res.json({ 
+      success: true, 
+      message: "OpenAI WebSocket connection successful",
+      apiKeyPrefix: OPENAI_API_KEY?.substring(0, 10)
+    });
+    testWs.close();
+  });
+
+  testWs.on("error", (error: any) => {
+    console.error("[Test] OpenAI WebSocket error:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      code: error.code,
+      statusCode: error.statusCode,
+      apiKeyPrefix: OPENAI_API_KEY?.substring(0, 10)
+    });
+  });
+
+  setTimeout(() => {
+    if (testWs.readyState === WebSocket.CONNECTING) {
+      testWs.close();
+      res.status(504).json({ 
+        success: false, 
+        error: "Connection timeout",
+        apiKeyPrefix: OPENAI_API_KEY?.substring(0, 10)
+      });
+    }
+  }, 5000);
+});
+
 app.get("/public-url", (req, res) => {
   res.json({ publicUrl: PUBLIC_URL });
 });
