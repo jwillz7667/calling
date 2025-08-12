@@ -109,7 +109,14 @@ app.all("/twiml", validateTwilioSignature, (req, res) => {
   wsUrl.protocol = "wss:";
   wsUrl.pathname = `/call`;
 
-  const twimlContent = twimlTemplate.replace("{{WS_URL}}", wsUrl.toString());
+  // XML-escape the URL to prevent XML parsing errors
+  const escapedUrl = wsUrl.toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+  const twimlContent = twimlTemplate.replace("{{WS_URL}}", escapedUrl);
   res.type("text/xml").send(twimlContent);
 });
 
@@ -136,7 +143,14 @@ app.all("/twiml-outbound", validateTwilioSignature, (req, res) => {
   wsUrl.searchParams.set("config", configBase64 as string);
 
   console.log(`[TwiML] Generated WebSocket URL: ${wsUrl.toString()}`);
-  const twimlContent = twimlTemplate.replace("{{WS_URL}}", wsUrl.toString());
+  // XML-escape the URL to prevent XML parsing errors
+  const escapedUrl = wsUrl.toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+  const twimlContent = twimlTemplate.replace("{{WS_URL}}", escapedUrl);
   console.log(`[TwiML] Sending TwiML response for session ${sessionId}`);
   res.type("text/xml").send(twimlContent);
 });
