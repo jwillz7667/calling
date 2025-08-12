@@ -3,4 +3,5 @@
   <Connect>
     <Stream url="{{WS_URL}}" />
   </Connect>
+  <Say>If you hear this message, the WebSocket connection failed to establish.</Say>
 </Response>

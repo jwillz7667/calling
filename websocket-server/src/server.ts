@@ -1,6 +1,7 @@
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
-import { IncomingMessage } from "http";
+import { IncomingMessage, ServerResponse } from "http";
+import { Duplex } from "stream";
 import dotenv from "dotenv";
 import http from "http";
 import { readFileSync } from "fs";
@@ -90,7 +91,22 @@ app.use(express.json());
 app.use(rateLimit(100, 60000)); // 100 requests per minute
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+
+// Add explicit WebSocket path handling
+server.on('upgrade', (request, socket, head) => {
+  const pathname = request.url ? new URL(request.url, `http://${request.headers.host}`).pathname : '';
+  console.log(`[Upgrade] WebSocket upgrade request for path: ${pathname}`);
+  
+  if (pathname === '/call' || pathname === '/logs' || pathname.startsWith('/call') || pathname.startsWith('/logs')) {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+const wss = new WebSocketServer({ noServer: true });
 
 const twimlPath = join(__dirname, "twiml.xml");
 const twimlTemplate = readFileSync(twimlPath, "utf-8");
@@ -419,7 +435,16 @@ app.get("/api/recordings", authenticateApiKey, (req, res) => {
 let currentCall: WebSocket | null = null;
 let currentLogs: WebSocket | null = null;
 
+console.log("[WebSocket Server] WebSocket server initialized and waiting for connections");
+
 wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+  console.log(`[WebSocket Server] ======== NEW CONNECTION ========`);
+  console.log(`[WebSocket Server] Time: ${new Date().toISOString()}`);
+  console.log(`[WebSocket Server] URL: ${req.url}`);
+  console.log(`[WebSocket Server] Host: ${req.headers.host}`);
+  console.log(`[WebSocket Server] User-Agent: ${req.headers['user-agent']}`);
+  console.log(`[WebSocket Server] ================================`);
+  
   const url = new URL(req.url || "", `http://${req.headers.host}`);
   const parts = url.pathname.split("/").filter(Boolean);
   
