@@ -5,6 +5,8 @@ import { Duplex } from "stream";
 import dotenv from "dotenv";
 import http from "http";
 import { readFileSync } from "fs";
+import https from "https";
+import dns from "dns";
 import { join } from "path";
 import cors from "cors";
 import {
@@ -107,13 +109,21 @@ app.get("/test-openai", authenticateApiKey, async (req, res) => {
   console.log("[Test] API Key present:", !!OPENAI_API_KEY);
   console.log("[Test] API Key prefix:", OPENAI_API_KEY?.substring(0, 20));
   
+  const testModel = process.env.OPENAI_REALTIME_MODEL || MODEL_VERSIONS.latest;
+  const agent = new https.Agent({
+    keepAlive: true,
+    maxSockets: 50,
+    lookup: (hostname, options, cb) => dns.lookup(hostname, { family: 4 }, cb as any),
+  });
+
   const testWs = new WebSocket(
-    `wss://api.openai.com/v1/realtime?model=${MODEL_VERSIONS.latest}`,
+    `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(testModel)}`,
     {
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
         "OpenAI-Beta": "realtime=v1",
       },
+      agent,
     }
   );
 

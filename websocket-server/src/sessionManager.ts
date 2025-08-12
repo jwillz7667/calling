@@ -1,4 +1,6 @@
 import { RawData, WebSocket } from "ws";
+import https from "https";
+import dns from "dns";
 import functions from "./functionHandlers";
 
 // Available voices for the Realtime API
@@ -352,20 +354,31 @@ function tryConnectModel(sessionId: string) {
   }
 
   const modelVersion = session.saved_config?.model || "latest";
-  const modelUrl = MODEL_VERSIONS[modelVersion];
+  // Allow override via env; fall back to a known-good snapshot
+  const envModel = process.env.OPENAI_REALTIME_MODEL || process.env.REALTIME_MODEL;
+  const fallbackSnapshot = "gpt-4o-realtime-preview-2025-06-03";
+  const modelUrl = envModel || MODEL_VERSIONS[modelVersion] || fallbackSnapshot;
 
   console.log(`[OpenAI] Connecting to Realtime API for session ${sessionId}`);
   console.log(`[OpenAI] Model: ${modelUrl}`);
   console.log(`[OpenAI] API Key present: ${!!session.openAIApiKey}`);
   console.log(`[OpenAI] API Key starts with: ${session.openAIApiKey?.substring(0, 10)}...`);
 
+  const agent = new https.Agent({
+    keepAlive: true,
+    maxSockets: 100,
+    // Force IPv4 on some PaaS to avoid intermittent IPv6 DNS/connect issues
+    lookup: (hostname, options, cb) => dns.lookup(hostname, { family: 4 }, cb as any),
+  });
+
   session.modelConn = new WebSocket(
-    `wss://api.openai.com/v1/realtime?model=${modelUrl}`,
+    `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(modelUrl)}`,
     {
       headers: {
         Authorization: `Bearer ${session.openAIApiKey}`,
         "OpenAI-Beta": "realtime=v1",
       },
+      agent,
     }
   );
 
@@ -375,6 +388,15 @@ function tryConnectModel(sessionId: string) {
       message: error.message,
       code: (error as any).code,
       statusCode: (error as any).statusCode
+    });
+    // Bubble error to frontend promptly
+    jsonSend(session.frontendConn, {
+      type: "model.websocket_error",
+      error: {
+        message: (error as any).message,
+        code: (error as any).code,
+        statusCode: (error as any).statusCode,
+      },
     });
   });
 
