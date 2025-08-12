@@ -129,6 +129,12 @@ export function handleCallConnection(
   const sessionId = callSid || `session_${Date.now()}`;
   const session = getSession(sessionId);
   
+  console.log(`[Session] Setting up connection for ${sessionId}`);
+  console.log(`[Session] Direction: ${direction}`);
+  console.log(`[Session] Config provided: ${!!config}`);
+  console.log(`[Session] API Key provided: ${!!openAIApiKey}`);
+  console.log(`[Session] API Key: ${openAIApiKey?.substring(0, 20)}...`);
+  
   cleanupConnection(session.twilioConn);
   session.twilioConn = ws;
   session.openAIApiKey = openAIApiKey;
@@ -325,11 +331,25 @@ REMEMBER: Complete adherence to the above instructions is mandatory. No negotiat
 
 function tryConnectModel(sessionId: string) {
   const session = sessions.get(sessionId);
-  if (!session) return;
-  
-  if (!session.twilioConn || !session.streamSid || !session.openAIApiKey)
+  if (!session) {
+    console.log(`[tryConnectModel] No session found for ${sessionId}`);
     return;
-  if (isOpen(session.modelConn)) return;
+  }
+  
+  console.log(`[tryConnectModel] Checking prerequisites for ${sessionId}:`);
+  console.log(`  - twilioConn: ${!!session.twilioConn}`);
+  console.log(`  - streamSid: ${!!session.streamSid} (${session.streamSid})`);
+  console.log(`  - openAIApiKey: ${!!session.openAIApiKey}`);
+  console.log(`  - modelConn already open: ${isOpen(session.modelConn)}`);
+  
+  if (!session.twilioConn || !session.streamSid || !session.openAIApiKey) {
+    console.log(`[tryConnectModel] Missing prerequisites, aborting connection`);
+    return;
+  }
+  if (isOpen(session.modelConn)) {
+    console.log(`[tryConnectModel] Model connection already open`);
+    return;
+  }
 
   const modelVersion = session.saved_config?.model || "latest";
   const modelUrl = MODEL_VERSIONS[modelVersion];
