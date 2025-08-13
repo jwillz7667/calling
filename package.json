@@ -9,7 +9,7 @@
     "dev": "cd websocket-server && npm run dev",
     "dev:backend": "cd websocket-server && npm run dev",
     "dev:frontend": "cd webapp && npm run dev",
-    "dev:ngrok": "cd websocket-server && npm run ngrok:auto",
+    "dev:ngrok": "node websocket-server/scripts/start-ngrok.js",
     "dev:all": "concurrently -k -p \"[{name}]\" -n \"BACKEND,FRONTEND,NGROK\" -c \"cyan,green,magenta\" \"npm run dev:backend\" \"sleep 2 && npm run dev:frontend\" \"sleep 5 && npm run dev:ngrok\""
   },
   "engines": {

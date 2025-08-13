@@ -7,12 +7,27 @@ const http = require('http');
 const dotenv = require('dotenv');
 
 const PORT = process.env.PORT || 8081;
-const envPath = path.join(__dirname, '..', '.env');
-const webappEnvPath = path.join(__dirname, '..', '..', 'webapp', '.env');
+
+// Handle both running from websocket-server and from root
+const isRunFromRoot = process.cwd().endsWith('openai-realtime-twilio-demo-1');
+const envPath = isRunFromRoot 
+  ? path.join(process.cwd(), 'websocket-server', '.env')
+  : path.join(__dirname, '..', '.env');
+const webappEnvPath = isRunFromRoot
+  ? path.join(process.cwd(), 'webapp', '.env')
+  : path.join(__dirname, '..', '..', 'webapp', '.env');
+
+console.log(`📁 Running from: ${process.cwd()}`);
+console.log(`📄 Backend .env path: ${envPath}`);
+console.log(`📄 Webapp .env path: ${webappEnvPath}`);
 
 // Load environment variables
-dotenv.config({ path: envPath });
-dotenv.config({ path: webappEnvPath });
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+}
+if (fs.existsSync(webappEnvPath)) {
+  dotenv.config({ path: webappEnvPath });
+}
 
 // Start ngrok
 console.log(`🚀 Starting ngrok on port ${PORT}...`);

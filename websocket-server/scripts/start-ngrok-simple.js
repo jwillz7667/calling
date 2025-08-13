@@ -6,7 +6,15 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 8081;
-const envPath = path.join(__dirname, '..', '.env');
+
+// Handle both running from websocket-server and from root
+const isRunFromRoot = process.cwd().endsWith('openai-realtime-twilio-demo-1');
+const envPath = isRunFromRoot 
+  ? path.join(process.cwd(), 'websocket-server', '.env')
+  : path.join(__dirname, '..', '.env');
+
+console.log(`📁 Running from: ${process.cwd()}`);
+console.log(`📄 .env path: ${envPath}`);
 
 console.log(`🚀 Starting ngrok on port ${PORT}...`);
 console.log(`   This will open ngrok in a new terminal window/tab`);
