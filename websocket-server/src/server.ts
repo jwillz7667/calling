@@ -451,12 +451,10 @@ let currentLogs: WebSocket | null = null;
 console.log("[WebSocket Server] WebSocket server initialized and waiting for connections");
 
 wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
-  console.log(`[WebSocket Server] ======== NEW CONNECTION ========`);
-  console.log(`[WebSocket Server] Time: ${new Date().toISOString()}`);
-  console.log(`[WebSocket Server] URL: ${req.url}`);
-  console.log(`[WebSocket Server] Host: ${req.headers.host}`);
-  console.log(`[WebSocket Server] User-Agent: ${req.headers['user-agent']}`);
-  console.log(`[WebSocket Server] ================================`);
+  // Only log non-logs connections to reduce spam
+  if (!req.url?.includes('/logs')) {
+    console.log(`[WebSocket] New connection: ${req.url}`);
+  }
   
   const url = new URL(req.url || "", `http://${req.headers.host}`);
   const parts = url.pathname.split("/").filter(Boolean);
@@ -475,20 +473,19 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
   }
 
   if (type === "call") {
-    console.log(`[WebSocket] New call connection received`);
     const query = url.searchParams;
     const sessionId = query.get("sessionId") || undefined;
     const to = query.get("to") || undefined;
     const direction = (query.get("direction") as "inbound" | "outbound") || "inbound";
     const configBase64 = query.get("config") || undefined;
     
-    console.log(`[WebSocket] Call params - sessionId: ${sessionId}, to: ${to}, direction: ${direction}`);
+    console.log(`[WebSocket] New call - direction: ${direction}, to: ${to || 'unknown'}`);
     
     let config: any = {};
     if (configBase64) {
       try {
         config = JSON.parse(Buffer.from(configBase64, "base64").toString());
-        console.log(`[WebSocket] Parsed config:`, config);
+        // Config parsed successfully
       } catch (e) {
         console.error("Failed to parse config:", e);
       }
@@ -496,7 +493,6 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     
     if (currentCall) currentCall.close();
     currentCall = ws;
-    console.log(`[WebSocket] Calling handleCallConnection with config`);
     // Pass configuration directly to handleCallConnection
     handleCallConnection(currentCall, OPENAI_API_KEY, sessionId, to, direction, config);
   } else if (type === "logs") {

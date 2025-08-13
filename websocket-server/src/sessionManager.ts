@@ -171,15 +171,7 @@ export function handleCallConnection(
   const sessionId = callSid || `session_${Date.now()}`;
   const session = getSession(sessionId);
   
-  console.log(`\n🎆 === TWILIO CALL CONNECTION ESTABLISHED ===`);
-  console.log(`[Session] ID: ${sessionId}`);
-  console.log(`[Session] Direction: ${direction}`);
-  console.log(`[Session] Phone: ${phoneNumber || "Unknown"}`);
-  console.log(`[Session] Config provided: ${!!config}`);
-  console.log(`[Session] API Key provided: ${!!openAIApiKey}`);
-  console.log(`[Session] API Key length: ${openAIApiKey?.length}`);
-  console.log(`[Session] API Key: ${openAIApiKey?.substring(0, 20)}...`);
-  console.log(`==========================================\n`);
+  console.log(`[Call] ${direction} call started - Session: ${sessionId}`);
   
   cleanupConnection(session.twilioConn);
   session.twilioConn = ws;
@@ -283,10 +275,7 @@ function handleTwilioMessage(sessionId: string, data: RawData) {
 
   switch (msg.event) {
     case "start":
-      console.log(`✅ [Twilio] Stream started - StreamSid: ${msg.start?.streamSid}`);
-      console.log(`[Twilio] Call details:`, msg.start);
-      console.log(`[Twilio] Session has API Key: ${!!session.openAIApiKey}`);
-      console.log(`[Twilio] API Key in session: ${session.openAIApiKey?.substring(0, 20)}...`);
+      console.log(`[Twilio] Stream started - StreamSid: ${msg.start?.streamSid}`);
       session.streamSid = msg.start.streamSid;
       session.latestMediaTimestamp = 0;
       session.lastAssistantItem = undefined;
@@ -299,19 +288,15 @@ function handleTwilioMessage(sessionId: string, data: RawData) {
         sessionId: sessionId,
         timestamp: Date.now()
       });
-      
-      console.log(`[Twilio] About to call tryConnectModel for session ${sessionId}`);
       tryConnectModel(sessionId);
       break;
     case "media":
       session.latestMediaTimestamp = msg.media.timestamp;
       session.mediaPacketCount = (session.mediaPacketCount || 0) + 1;
       
-      // Log every 50 packets (about 1 second of audio)
-      if (session.mediaPacketCount % 50 === 0) {
-        console.log(`[Twilio→OpenAI] Forwarding audio packet #${session.mediaPacketCount} for session ${sessionId}`);
-        console.log(`  - OpenAI connected: ${isOpen(session.modelConn)}`);
-        console.log(`  - Payload size: ${msg.media.payload?.length || 0} bytes`);
+      // Log every 500 packets (about 10 seconds of audio) for debugging
+      if (session.mediaPacketCount % 500 === 0) {
+        logVerbose(`[Audio] ${session.mediaPacketCount} packets forwarded`);
       }
       
       if (isOpen(session.modelConn)) {
@@ -418,18 +403,11 @@ function tryConnectModel(sessionId: string) {
     return;
   }
   
-  console.log(`[tryConnectModel] Checking prerequisites for ${sessionId}:`);
-  console.log(`  - twilioConn: ${!!session.twilioConn}`);
-  console.log(`  - streamSid: ${!!session.streamSid} (${session.streamSid})`);
-  console.log(`  - openAIApiKey: ${!!session.openAIApiKey}`);
-  console.log(`  - modelConn already open: ${isOpen(session.modelConn)}`);
-  
   if (!session.twilioConn || !session.streamSid || !session.openAIApiKey) {
-    console.log(`[tryConnectModel] Missing prerequisites, aborting connection`);
+    console.warn(`[OpenAI] Cannot connect - missing prerequisites for session ${sessionId}`);
     return;
   }
   if (isOpen(session.modelConn)) {
-    console.log(`[tryConnectModel] Model connection already open`);
     return;
   }
 
@@ -439,10 +417,7 @@ function tryConnectModel(sessionId: string) {
   const fallbackSnapshot = "gpt-4o-realtime-preview-2025-06-03";
   const modelUrl = envModel || MODEL_VERSIONS[modelVersion] || fallbackSnapshot;
 
-  console.log(`[OpenAI] Connecting to Realtime API for session ${sessionId}`);
-  console.log(`[OpenAI] Model: ${modelUrl}`);
-  console.log(`[OpenAI] API Key present: ${!!session.openAIApiKey}`);
-  console.log(`[OpenAI] API Key starts with: ${session.openAIApiKey?.substring(0, 10)}...`);
+  console.log(`[OpenAI] Connecting to ${modelUrl} for session ${sessionId}`);
 
   const agent = new https.Agent({
     keepAlive: true,
@@ -485,12 +460,7 @@ function tryConnectModel(sessionId: string) {
   });
 
   session.modelConn.on("open", () => {
-    console.log(`[OpenAI] ✅ WebSocket connected successfully for session ${sessionId}`);
-    console.log(`[OpenAI] Connection details:`);
-    console.log(`  - Model URL: ${modelUrl}`);
-    console.log(`  - Session ID: ${sessionId}`);
-    console.log(`  - Direction: ${session.direction}`);
-    console.log(`  - Phone: ${session.phoneNumber}`);
+    console.log(`[OpenAI] Connected to ${modelUrl}`);
     
     const config = session.saved_config || {};
     
@@ -547,8 +517,6 @@ REMEMBER: Complete adherence to the above instructions is mandatory. No negotiat
       },
     });
     
-    // Log the enforced instructions for debugging
-    console.log(`Session ${sessionId} initialized with enforced instructions:`, userInstructions);
     
     // Send connection event to frontend AFTER configuration
     jsonSend(session.frontendConn, {
@@ -559,13 +527,6 @@ REMEMBER: Complete adherence to the above instructions is mandatory. No negotiat
       configApplied: true
     });
     
-    // For outbound calls, let the AI follow the instructions without forcing a greeting
-    // The AI will strictly follow the user's inputted instructions
-    if (session.direction === "outbound") {
-      // Only trigger initial response if explicitly needed by instructions
-      // Otherwise, let the AI wait or act according to the provided instructions
-      console.log(`Outbound call started for session ${sessionId} - AI will follow instructions strictly without automatic greeting`);
-    }
   });
 
   session.modelConn.on("message", (data: RawData) => handleModelMessage(sessionId, data));
@@ -595,16 +556,15 @@ function handleModelMessage(sessionId: string, data: RawData) {
   // Forward enhanced event to frontend for monitoring
   jsonSend(session.frontendConn, eventLog);
 
-  // Console logging with emojis for better visibility
-  const eventEmoji = getEventEmoji(event.type);
-  console.log(`[${timestamp}] ${eventEmoji} OpenAI Event [${sessionId}]:`, event.type);
-  logVerbose(`  Details:`, summarizeEvent(event));
+  // Only log important events
+  if (['session.created', 'session.updated', 'error', 'response.done'].includes(event.type)) {
+    const eventEmoji = getEventEmoji(event.type);
+    console.log(`[OpenAI] ${eventEmoji} ${event.type}`);
+  }
+  logVerbose(`[${timestamp}] OpenAI Event:`, event.type, summarizeEvent(event));
 
   switch (event.type) {
     case "session.created":
-      // Session successfully created, log configuration
-      console.log(`🎉 [OpenAI] Session ${sessionId} created successfully`);
-      console.log(`  Configuration:`, event.session);
       startSessionExpiryTimer(sessionId);
       
       // Don't trigger response here - wait for session.updated event
@@ -612,14 +572,9 @@ function handleModelMessage(sessionId: string, data: RawData) {
       break;
       
     case "session.updated":
-      // Session configuration updated
-      console.log(`🔄 [OpenAI] Session ${sessionId} configuration updated`);
-      console.log(`  New configuration:`, event.session);
-      
       // NOW trigger initial response for inbound calls after config is applied
       if (session.direction === "inbound" && !session.responseTriggered) {
         session.responseTriggered = true;
-        console.log(`🎯 [OpenAI] Triggering initial response for inbound call (after config update)`);
         jsonSend(session.modelConn, {
           type: "response.create",
           response: {
@@ -671,7 +626,6 @@ function handleModelMessage(sessionId: string, data: RawData) {
       break;
 
     case "response.audio.delta":
-      console.log(`🔊 [Audio Delta] Received for session ${sessionId}, sending to Twilio`);
       if (session.twilioConn && session.streamSid) {
         if (session.responseStartTimestamp === undefined) {
           session.responseStartTimestamp = session.latestMediaTimestamp || 0;
@@ -684,15 +638,12 @@ function handleModelMessage(sessionId: string, data: RawData) {
           media: { payload: event.delta },
         };
         
-        console.log(`📤 [Twilio] Sending audio to phone - StreamSid: ${session.streamSid}, Delta length: ${event.delta?.length || 0}`);
         jsonSend(session.twilioConn, mediaMessage);
 
         jsonSend(session.twilioConn, {
           event: "mark",
           streamSid: session.streamSid,
         });
-      } else {
-        console.warn(`⚠️ [Audio Delta] Cannot send to Twilio - twilioConn: ${!!session.twilioConn}, streamSid: ${session.streamSid}`);
       }
       break;
       
