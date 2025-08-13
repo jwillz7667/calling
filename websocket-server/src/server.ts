@@ -38,13 +38,17 @@ const PUBLIC_URL = process.env.PUBLIC_URL || "";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 
 // Debug logging for Railway
-console.log("=== Environment Configuration ===");
+console.log("\n🚀 === Server Starting ===");
 console.log("PORT:", PORT);
 console.log("PUBLIC_URL:", PUBLIC_URL || "Not set");
 console.log("OPENAI_API_KEY:", OPENAI_API_KEY ? `${OPENAI_API_KEY.substring(0, 10)}...` : "NOT SET");
 console.log("NODE_ENV:", process.env.NODE_ENV);
-console.log("================================");
-console.log("LOG_REALTIME_EVENTS:", (process.env.LOG_REALTIME_EVENTS || "false"));
+console.log("LOG_REALTIME_EVENTS:", (process.env.LOG_REALTIME_EVENTS || "true"));
+console.log("\n🌐 === Webhook Configuration ===");
+console.log("Twilio Webhook URL:", PUBLIC_URL ? `${PUBLIC_URL}/twiml` : "Not configured");
+console.log("WebSocket URL:", PUBLIC_URL ? `wss://${PUBLIC_URL.replace('https://', '')}/call` : "Not configured");
+console.log("Frontend Logs URL:", PUBLIC_URL ? `wss://${PUBLIC_URL.replace('https://', '')}/logs` : "Not configured");
+console.log("================================\n");
 
 if (!OPENAI_API_KEY) {
   console.error("\n❌ OPENAI_API_KEY environment variable is required");

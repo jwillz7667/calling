@@ -73,7 +73,7 @@ interface Session {
 
 let sessions: Map<string, Session> = new Map();
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-const VERBOSE_LOG = (process.env.LOG_REALTIME_EVENTS || "false").toLowerCase() === "true";
+const VERBOSE_LOG = (process.env.LOG_REALTIME_EVENTS || "true").toLowerCase() === "true";
 
 function logVerbose(...args: any[]) {
   if (VERBOSE_LOG) console.log(...args);
@@ -90,6 +90,25 @@ function summarizeEvent(ev: any) {
   if (ev.delta) base.delta_len = typeof ev.delta === "string" ? ev.delta.length : 0;
   if (ev.error) base.error = ev.error;
   return base;
+}
+
+function getEventEmoji(eventType: string): string {
+  const emojiMap: Record<string, string> = {
+    "session.created": "🎉",
+    "session.updated": "🔄",
+    "conversation.item.created": "💬",
+    "conversation.item.input_audio_transcription.completed": "📝",
+    "input_audio_buffer.speech_started": "🎤",
+    "input_audio_buffer.speech_stopped": "🔇",
+    "input_audio_buffer.committed": "✅",
+    "response.audio.delta": "🔊",
+    "response.audio_transcript.delta": "📋",
+    "response.output_item.done": "✔️",
+    "response.done": "🏁",
+    "error": "❌",
+    "rate_limits.updated": "⚠️"
+  };
+  return emojiMap[eventType] || "📡";
 }
 
 // Get or create session
@@ -423,7 +442,20 @@ function tryConnectModel(sessionId: string) {
   });
 
   session.modelConn.on("open", () => {
-    console.log(`[OpenAI] WebSocket connected successfully for session ${sessionId}`);
+    console.log(`[OpenAI] ✅ WebSocket connected successfully for session ${sessionId}`);
+    console.log(`[OpenAI] Connection details:`);
+    console.log(`  - Model URL: ${modelUrl}`);
+    console.log(`  - Session ID: ${sessionId}`);
+    console.log(`  - Direction: ${session.direction}`);
+    console.log(`  - Phone: ${session.phoneNumber}`);
+    
+    // Send connection event to frontend
+    jsonSend(session.frontendConn, {
+      type: "openai.connection.established",
+      timestamp: Date.now(),
+      model: modelUrl,
+      sessionId: sessionId
+    });
     const config = session.saved_config || {};
     
     // Build tools configuration from available functions
@@ -503,21 +535,38 @@ function handleModelMessage(sessionId: string, data: RawData) {
   const event = parseMessage(data);
   if (!event) return;
 
-  // Forward all events to frontend for monitoring
-  jsonSend(session.frontendConn, event);
+  // Enhanced logging for all OpenAI Realtime events
+  const timestamp = new Date().toISOString();
+  const eventLog = {
+    ...event,
+    _metadata: {
+      timestamp,
+      sessionId,
+      eventType: event.type,
+      summary: summarizeEvent(event)
+    }
+  };
+  
+  // Forward enhanced event to frontend for monitoring
+  jsonSend(session.frontendConn, eventLog);
 
-  logVerbose(`[Realtime:${sessionId}]`, summarizeEvent(event));
+  // Console logging with emojis for better visibility
+  const eventEmoji = getEventEmoji(event.type);
+  console.log(`[${timestamp}] ${eventEmoji} OpenAI Event [${sessionId}]:`, event.type);
+  logVerbose(`  Details:`, summarizeEvent(event));
 
   switch (event.type) {
     case "session.created":
       // Session successfully created, log configuration
-      console.log(`Session ${sessionId} created with model`);
+      console.log(`🎉 [OpenAI] Session ${sessionId} created successfully`);
+      console.log(`  Configuration:`, event.session);
       startSessionExpiryTimer(sessionId);
       break;
       
     case "session.updated":
       // Session configuration updated
-      console.log(`Session ${sessionId} configuration updated`);
+      console.log(`🔄 [OpenAI] Session ${sessionId} configuration updated`);
+      console.log(`  New configuration:`, event.session);
       break;
 
     case "input_audio_buffer.speech_started":
@@ -616,10 +665,12 @@ function handleModelMessage(sessionId: string, data: RawData) {
     
     case "error":
       // Handle errors from the API
-      console.error(`Session ${sessionId} error:`, event.error);
-      jsonSend(session.frontendConn, {
-        type: "error",
-        error: event.error
+      console.error(`❌ [OpenAI] Session ${sessionId} error:`, event.error);
+      console.error(`  Error details:`, {
+        type: event.error?.type,
+        message: event.error?.message,
+        code: event.error?.code,
+        param: event.error?.param
       });
       break;
       
