@@ -579,6 +579,17 @@ function handleModelMessage(sessionId: string, data: RawData) {
       console.log(`🎉 [OpenAI] Session ${sessionId} created successfully`);
       console.log(`  Configuration:`, event.session);
       startSessionExpiryTimer(sessionId);
+      
+      // For inbound calls, trigger an initial response
+      if (session.direction === "inbound") {
+        console.log(`🎯 [OpenAI] Triggering initial response for inbound call`);
+        jsonSend(session.modelConn, {
+          type: "response.create",
+          response: {
+            modalities: ["text", "audio"]
+          }
+        });
+      }
       break;
       
     case "session.updated":
@@ -629,22 +640,28 @@ function handleModelMessage(sessionId: string, data: RawData) {
       break;
 
     case "response.audio.delta":
+      console.log(`🔊 [Audio Delta] Received for session ${sessionId}, sending to Twilio`);
       if (session.twilioConn && session.streamSid) {
         if (session.responseStartTimestamp === undefined) {
           session.responseStartTimestamp = session.latestMediaTimestamp || 0;
         }
         if (event.item_id) session.lastAssistantItem = event.item_id;
 
-        jsonSend(session.twilioConn, {
+        const mediaMessage = {
           event: "media",
           streamSid: session.streamSid,
           media: { payload: event.delta },
-        });
+        };
+        
+        console.log(`📤 [Twilio] Sending audio to phone - StreamSid: ${session.streamSid}, Delta length: ${event.delta?.length || 0}`);
+        jsonSend(session.twilioConn, mediaMessage);
 
         jsonSend(session.twilioConn, {
           event: "mark",
           streamSid: session.streamSid,
         });
+      } else {
+        console.warn(`⚠️ [Audio Delta] Cannot send to Twilio - twilioConn: ${!!session.twilioConn}, streamSid: ${session.streamSid}`);
       }
       break;
       
