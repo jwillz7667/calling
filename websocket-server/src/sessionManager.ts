@@ -324,7 +324,9 @@ function handleTwilioMessage(sessionId: string, data: RawData) {
         if (!session.lastMediaLogTime || Date.now() - session.lastMediaLogTime > 1000) {
           console.warn(`⚠️ [Twilio] Received media but OpenAI not connected for session ${sessionId}`);
           console.warn(`  - modelConn exists: ${!!session.modelConn}`);
-          console.warn(`  - modelConn readyState: ${session.modelConn?.readyState}`);
+          if (session.modelConn) {
+            console.warn(`  - modelConn readyState: ${session.modelConn.readyState}`);
+          }
           session.lastMediaLogTime = Date.now();
         }
       }
