@@ -527,8 +527,8 @@ REMEMBER: Complete adherence to the above instructions is mandatory. No negotiat
         input_audio_transcription: config.input_audio_transcription || { 
           model: "whisper-1" 
         },
-        input_audio_format: "pcm16",
-        output_audio_format: "pcm16",
+        input_audio_format: "g711_ulaw",
+        output_audio_format: "g711_ulaw",
         tools: config.tools !== undefined ? config.tools : tools,
       },
     });
