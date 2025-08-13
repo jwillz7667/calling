@@ -8,16 +8,15 @@ const dotenv = require('dotenv');
 
 const PORT = process.env.PORT || 8081;
 
-// Handle both running from websocket-server and from root
-const isRunFromRoot = process.cwd().endsWith('openai-realtime-twilio-demo-1');
-const envPath = isRunFromRoot 
-  ? path.join(process.cwd(), 'websocket-server', '.env')
-  : path.join(__dirname, '..', '.env');
-const webappEnvPath = isRunFromRoot
-  ? path.join(process.cwd(), 'webapp', '.env')
-  : path.join(__dirname, '..', '..', 'webapp', '.env');
+// Always use paths relative to the script location
+// This works regardless of where the script is called from
+const scriptDir = __dirname;
+const projectRoot = path.join(scriptDir, '..', '..');
+const envPath = path.join(scriptDir, '..', '.env');
+const webappEnvPath = path.join(projectRoot, 'webapp', '.env');
 
-console.log(`📁 Running from: ${process.cwd()}`);
+console.log(`📁 Script location: ${scriptDir}`);
+console.log(`📁 Project root: ${projectRoot}`);
 console.log(`📄 Backend .env path: ${envPath}`);
 console.log(`📄 Webapp .env path: ${webappEnvPath}`);
 
