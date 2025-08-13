@@ -64,6 +64,7 @@ interface Session {
   phoneNumber?: string;
   direction?: "inbound" | "outbound";
   recordingSid?: string;
+  responseTriggered?: boolean;
   transcriptions?: Array<{
     timestamp: number;
     role: "user" | "assistant";
@@ -471,13 +472,6 @@ function tryConnectModel(sessionId: string) {
     console.log(`  - Direction: ${session.direction}`);
     console.log(`  - Phone: ${session.phoneNumber}`);
     
-    // Send connection event to frontend
-    jsonSend(session.frontendConn, {
-      type: "openai.connection.established",
-      timestamp: Date.now(),
-      model: modelUrl,
-      sessionId: sessionId
-    });
     const config = session.saved_config || {};
     
     // Build tools configuration from available functions
@@ -536,6 +530,15 @@ REMEMBER: Complete adherence to the above instructions is mandatory. No negotiat
     // Log the enforced instructions for debugging
     console.log(`Session ${sessionId} initialized with enforced instructions:`, userInstructions);
     
+    // Send connection event to frontend AFTER configuration
+    jsonSend(session.frontendConn, {
+      type: "openai.connection.established",
+      timestamp: Date.now(),
+      model: modelUrl,
+      sessionId: sessionId,
+      configApplied: true
+    });
+    
     // For outbound calls, let the AI follow the instructions without forcing a greeting
     // The AI will strictly follow the user's inputted instructions
     if (session.direction === "outbound") {
@@ -584,9 +587,19 @@ function handleModelMessage(sessionId: string, data: RawData) {
       console.log(`  Configuration:`, event.session);
       startSessionExpiryTimer(sessionId);
       
-      // For inbound calls, trigger an initial response
-      if (session.direction === "inbound") {
-        console.log(`🎯 [OpenAI] Triggering initial response for inbound call`);
+      // Don't trigger response here - wait for session.updated event
+      // to ensure our configuration is applied first
+      break;
+      
+    case "session.updated":
+      // Session configuration updated
+      console.log(`🔄 [OpenAI] Session ${sessionId} configuration updated`);
+      console.log(`  New configuration:`, event.session);
+      
+      // NOW trigger initial response for inbound calls after config is applied
+      if (session.direction === "inbound" && !session.responseTriggered) {
+        session.responseTriggered = true;
+        console.log(`🎯 [OpenAI] Triggering initial response for inbound call (after config update)`);
         jsonSend(session.modelConn, {
           type: "response.create",
           response: {
@@ -594,12 +607,6 @@ function handleModelMessage(sessionId: string, data: RawData) {
           }
         });
       }
-      break;
-      
-    case "session.updated":
-      // Session configuration updated
-      console.log(`🔄 [OpenAI] Session ${sessionId} configuration updated`);
-      console.log(`  New configuration:`, event.session);
       break;
 
     case "input_audio_buffer.speech_started":
