@@ -44,6 +44,7 @@ console.log("PUBLIC_URL:", PUBLIC_URL || "Not set");
 console.log("OPENAI_API_KEY:", OPENAI_API_KEY ? `${OPENAI_API_KEY.substring(0, 10)}...` : "NOT SET");
 console.log("NODE_ENV:", process.env.NODE_ENV);
 console.log("================================");
+console.log("LOG_REALTIME_EVENTS:", (process.env.LOG_REALTIME_EVENTS || "false"));
 
 if (!OPENAI_API_KEY) {
   console.error("\n❌ OPENAI_API_KEY environment variable is required");

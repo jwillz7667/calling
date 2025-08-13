@@ -73,6 +73,24 @@ interface Session {
 
 let sessions: Map<string, Session> = new Map();
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const VERBOSE_LOG = (process.env.LOG_REALTIME_EVENTS || "false").toLowerCase() === "true";
+
+function logVerbose(...args: any[]) {
+  if (VERBOSE_LOG) console.log(...args);
+}
+
+function summarizeEvent(ev: any) {
+  if (!ev || typeof ev !== "object") return ev;
+  const type = ev.type;
+  const base: any = { type };
+  if (ev.item && ev.item.type) base.item_type = ev.item.type;
+  if (ev.item_id) base.item_id = ev.item_id;
+  if (ev.call_id) base.call_id = ev.call_id;
+  if (ev.output_index !== undefined) base.output_index = ev.output_index;
+  if (ev.delta) base.delta_len = typeof ev.delta === "string" ? ev.delta.length : 0;
+  if (ev.error) base.error = ev.error;
+  return base;
+}
 
 // Get or create session
 function getSession(sessionId: string): Session {
@@ -487,6 +505,8 @@ function handleModelMessage(sessionId: string, data: RawData) {
 
   // Forward all events to frontend for monitoring
   jsonSend(session.frontendConn, event);
+
+  logVerbose(`[Realtime:${sessionId}]`, summarizeEvent(event));
 
   switch (event.type) {
     case "session.created":
