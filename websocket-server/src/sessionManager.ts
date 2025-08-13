@@ -174,6 +174,7 @@ export function handleCallConnection(
   console.log(`[Session] Phone: ${phoneNumber || "Unknown"}`);
   console.log(`[Session] Config provided: ${!!config}`);
   console.log(`[Session] API Key provided: ${!!openAIApiKey}`);
+  console.log(`[Session] API Key length: ${openAIApiKey?.length}`);
   console.log(`[Session] API Key: ${openAIApiKey?.substring(0, 20)}...`);
   console.log(`==========================================\n`);
   
@@ -278,6 +279,8 @@ function handleTwilioMessage(sessionId: string, data: RawData) {
     case "start":
       console.log(`✅ [Twilio] Stream started - StreamSid: ${msg.start?.streamSid}`);
       console.log(`[Twilio] Call details:`, msg.start);
+      console.log(`[Twilio] Session has API Key: ${!!session.openAIApiKey}`);
+      console.log(`[Twilio] API Key in session: ${session.openAIApiKey?.substring(0, 20)}...`);
       session.streamSid = msg.start.streamSid;
       session.latestMediaTimestamp = 0;
       session.lastAssistantItem = undefined;
@@ -291,6 +294,7 @@ function handleTwilioMessage(sessionId: string, data: RawData) {
         timestamp: Date.now()
       });
       
+      console.log(`[Twilio] About to call tryConnectModel for session ${sessionId}`);
       tryConnectModel(sessionId);
       break;
     case "media":
