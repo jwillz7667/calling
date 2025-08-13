@@ -65,6 +65,8 @@ interface Session {
   direction?: "inbound" | "outbound";
   recordingSid?: string;
   responseTriggered?: boolean;
+  mediaPacketCount?: number;
+  lastMediaLogTime?: number;
   transcriptions?: Array<{
     timestamp: number;
     role: "user" | "assistant";
@@ -274,7 +276,10 @@ function handleTwilioMessage(sessionId: string, data: RawData) {
   const msg = parseMessage(data);
   if (!msg) return;
 
-  console.log(`[📞 Twilio Event] ${msg.event} for session ${sessionId}`);
+  // Only log non-media events, or media events periodically
+  if (msg.event !== "media") {
+    console.log(`[📞 Twilio Event] ${msg.event} for session ${sessionId}`);
+  }
 
   switch (msg.event) {
     case "start":
@@ -300,13 +305,28 @@ function handleTwilioMessage(sessionId: string, data: RawData) {
       break;
     case "media":
       session.latestMediaTimestamp = msg.media.timestamp;
+      session.mediaPacketCount = (session.mediaPacketCount || 0) + 1;
+      
+      // Log every 50 packets (about 1 second of audio)
+      if (session.mediaPacketCount % 50 === 0) {
+        console.log(`[Twilio→OpenAI] Forwarding audio packet #${session.mediaPacketCount} for session ${sessionId}`);
+        console.log(`  - OpenAI connected: ${isOpen(session.modelConn)}`);
+        console.log(`  - Payload size: ${msg.media.payload?.length || 0} bytes`);
+      }
+      
       if (isOpen(session.modelConn)) {
         jsonSend(session.modelConn, {
           type: "input_audio_buffer.append",
           audio: msg.media.payload,
         });
       } else {
-        console.warn(`⚠️ [Twilio] Received media but OpenAI not connected for session ${sessionId}`);
+        // Log this warning only once per second
+        if (!session.lastMediaLogTime || Date.now() - session.lastMediaLogTime > 1000) {
+          console.warn(`⚠️ [Twilio] Received media but OpenAI not connected for session ${sessionId}`);
+          console.warn(`  - modelConn exists: ${!!session.modelConn}`);
+          console.warn(`  - modelConn readyState: ${session.modelConn?.readyState}`);
+          session.lastMediaLogTime = Date.now();
+        }
       }
       break;
     case "close":
