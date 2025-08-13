@@ -7,6 +7,9 @@
     "build": "tsc && cp src/twiml.xml dist/",
     "start": "node dist/server.js",
     "dev": "nodemon --watch 'src/**/*' --watch '.env' --ext 'ts,js,xml,env' --exec 'ts-node' src/server.ts",
+    "dev:all": "concurrently -k -p \"[{name}]\" -n \"SERVER,NGROK\" -c \"cyan,magenta\" \"npm run dev\" \"npm run ngrok:auto\"",
+    "ngrok": "ngrok http 8081",
+    "ngrok:auto": "node scripts/start-ngrok.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -29,6 +32,7 @@
     "@types/cors": "^2.8.17",
     "@types/dotenv": "^8.2.0",
     "@types/express": "^5.0.0",
+    "concurrently": "^9.2.0",
     "nodemon": "^2.0.22"
   }
 }
