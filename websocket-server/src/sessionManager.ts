@@ -516,16 +516,16 @@ REMEMBER: Complete adherence to the above instructions is mandatory. No negotiat
           prefix_padding_ms: 300,
           silence_duration_ms: 200
         },
-        voice: config.voice || "ash",
+        voice: config.voice || "alloy",
         instructions: enforcedInstructions,
         temperature: config.temperature !== undefined ? config.temperature : 0.8,
         max_response_output_tokens: config.max_response_output_tokens || 4096,
         input_audio_transcription: config.input_audio_transcription || { 
           model: "whisper-1" 
         },
-        input_audio_format: "g711_ulaw",
-        output_audio_format: "g711_ulaw",
-        tools: config.tools || tools,
+        input_audio_format: "pcm16",
+        output_audio_format: "pcm16",
+        tools: config.tools !== undefined ? config.tools : tools,
       },
     });
     
