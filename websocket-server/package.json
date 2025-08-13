@@ -10,6 +10,7 @@
     "dev:all": "concurrently -k -p \"[{name}]\" -n \"SERVER,NGROK\" -c \"cyan,magenta\" \"npm run dev\" \"npm run ngrok:auto\"",
     "ngrok": "ngrok http 8081",
     "ngrok:auto": "node scripts/start-ngrok.js",
+    "ngrok:simple": "node scripts/start-ngrok-simple.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

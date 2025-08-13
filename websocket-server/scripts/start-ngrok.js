@@ -16,12 +16,30 @@ dotenv.config({ path: webappEnvPath });
 
 // Start ngrok
 console.log(`🚀 Starting ngrok on port ${PORT}...`);
+console.log(`   Command: ngrok http ${PORT}`);
+
 const ngrok = spawn('ngrok', ['http', PORT.toString()], {
-  stdio: ['inherit', 'pipe', 'inherit']
+  stdio: ['inherit', 'pipe', 'pipe']
 });
 
 let output = '';
 let tunnelFound = false;
+
+// Handle stderr
+ngrok.stderr.on('data', (data) => {
+  const text = data.toString();
+  console.error('Ngrok error:', text);
+});
+
+ngrok.on('error', (error) => {
+  console.error('Failed to start ngrok:', error.message);
+  if (error.code === 'ENOENT') {
+    console.error('\n❌ ngrok not found. Please install it:');
+    console.error('   Mac: brew install ngrok');
+    console.error('   Or download from: https://ngrok.com/download');
+  }
+  process.exit(1);
+});
 
 ngrok.stdout.on('data', (data) => {
   const text = data.toString();
