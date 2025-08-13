@@ -3,12 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "install": "cd websocket-server && npm install",
+    "install": "cd websocket-server && npm install && cd ../webapp && npm install",
     "build": "cd websocket-server && npm run build",
     "start": "cd websocket-server && npm start",
-    "dev": "cd websocket-server && npm run dev"
+    "dev": "cd websocket-server && npm run dev",
+    "dev:backend": "cd websocket-server && npm run dev",
+    "dev:frontend": "cd webapp && npm run dev",
+    "dev:ngrok": "cd websocket-server && npm run ngrok:auto",
+    "dev:all": "concurrently -k -p \"[{name}]\" -n \"BACKEND,FRONTEND,NGROK\" -c \"cyan,green,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:ngrok\""
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
   }
 }

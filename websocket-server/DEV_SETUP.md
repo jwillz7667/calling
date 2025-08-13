@@ -2,18 +2,20 @@
 
 ## Quick Start
 
-Run both the websocket server and ngrok with a single command:
+Run everything (frontend, backend, and ngrok) with a single command from the root:
 
 ```bash
-cd websocket-server
+# From project root
 npm run dev:all
 ```
 
 This will:
-1. Start the TypeScript development server with hot reload on port 8081
-2. Start ngrok tunnel to expose port 8081 to the internet
-3. Automatically update the PUBLIC_URL in your .env file
-4. Display the URLs you need to configure in Twilio
+1. Start the Next.js webapp on port 3000
+2. Start the TypeScript websocket server on port 8081
+3. Start ngrok tunnel to expose port 8081 to the internet
+4. Automatically update the PUBLIC_URL in your .env file
+5. **Automatically update your Twilio phone number webhooks** (if credentials are configured)
+6. Display all the URLs for easy reference
 
 ## Available Scripts
 
@@ -62,12 +64,29 @@ Copy these URLs to your Twilio phone number configuration.
 
 ## Environment Variables
 
+### Required for Basic Operation
 The `ngrok:auto` script automatically updates your `.env` file with:
 ```
 PUBLIC_URL=https://your-ngrok-url.ngrok.app
 ```
 
-This ensures your server always knows its public URL for Twilio callbacks.
+### Optional for Auto-Updating Twilio Webhooks
+Add these to `webapp/.env` to enable automatic Twilio webhook updates:
+```
+TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+
+# Optional - if you have multiple phone numbers
+TWILIO_PHONE_NUMBER=+1234567890  # Specify which number to update
+# OR
+TWILIO_PHONE_NUMBER_SID=PNxxxxxx  # Use the specific SID
+```
+
+When these are configured, the script will:
+1. Automatically find your Twilio phone number
+2. Update its voice URL to point to your ngrok tunnel
+3. Update the status callback URL
+4. Save the phone number SID for future use
 
 ## Troubleshooting
 
