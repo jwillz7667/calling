@@ -324,9 +324,7 @@ function handleTwilioMessage(sessionId: string, data: RawData) {
         if (!session.lastMediaLogTime || Date.now() - session.lastMediaLogTime > 1000) {
           console.warn(`⚠️ [Twilio] Received media but OpenAI not connected for session ${sessionId}`);
           console.warn(`  - modelConn exists: ${!!session.modelConn}`);
-          if (session.modelConn) {
-            console.warn(`  - modelConn readyState: ${session.modelConn.readyState}`);
-          }
+          console.warn(`  - modelConn readyState: ${session.modelConn ? (session.modelConn as WebSocket).readyState : 'undefined'}`);
           session.lastMediaLogTime = Date.now();
         }
       }
@@ -450,7 +448,7 @@ function tryConnectModel(sessionId: string) {
     keepAlive: true,
     maxSockets: 100,
     // Force IPv4 on some PaaS to avoid intermittent IPv6 DNS/connect issues
-    lookup: (hostname, options, cb) => dns.lookup(hostname, { family: 4 }, cb as any),
+    lookup: (hostname, _options, cb) => dns.lookup(hostname, { family: 4 }, cb as any),
   });
 
   session.modelConn = new WebSocket(
