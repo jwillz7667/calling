@@ -168,11 +168,14 @@ export function handleCallConnection(
   const sessionId = callSid || `session_${Date.now()}`;
   const session = getSession(sessionId);
   
-  console.log(`[Session] Setting up connection for ${sessionId}`);
+  console.log(`\n🎆 === TWILIO CALL CONNECTION ESTABLISHED ===`);
+  console.log(`[Session] ID: ${sessionId}`);
   console.log(`[Session] Direction: ${direction}`);
+  console.log(`[Session] Phone: ${phoneNumber || "Unknown"}`);
   console.log(`[Session] Config provided: ${!!config}`);
   console.log(`[Session] API Key provided: ${!!openAIApiKey}`);
   console.log(`[Session] API Key: ${openAIApiKey?.substring(0, 20)}...`);
+  console.log(`==========================================\n`);
   
   cleanupConnection(session.twilioConn);
   session.twilioConn = ws;
@@ -269,12 +272,25 @@ function handleTwilioMessage(sessionId: string, data: RawData) {
   const msg = parseMessage(data);
   if (!msg) return;
 
+  console.log(`[📞 Twilio Event] ${msg.event} for session ${sessionId}`);
+
   switch (msg.event) {
     case "start":
+      console.log(`✅ [Twilio] Stream started - StreamSid: ${msg.start?.streamSid}`);
+      console.log(`[Twilio] Call details:`, msg.start);
       session.streamSid = msg.start.streamSid;
       session.latestMediaTimestamp = 0;
       session.lastAssistantItem = undefined;
       session.responseStartTimestamp = undefined;
+      
+      // Send stream started event to frontend
+      jsonSend(session.frontendConn, {
+        type: "twilio.stream.started",
+        streamSid: msg.start.streamSid,
+        sessionId: sessionId,
+        timestamp: Date.now()
+      });
+      
       tryConnectModel(sessionId);
       break;
     case "media":
@@ -284,6 +300,8 @@ function handleTwilioMessage(sessionId: string, data: RawData) {
           type: "input_audio_buffer.append",
           audio: msg.media.payload,
         });
+      } else {
+        console.warn(`⚠️ [Twilio] Received media but OpenAI not connected for session ${sessionId}`);
       }
       break;
     case "close":

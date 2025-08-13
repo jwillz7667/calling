@@ -171,9 +171,17 @@ app.get("/public-url", (req, res) => {
 });
 
 app.all("/twiml", validateTwilioSignature, (req, res) => {
+  console.log("\n📞 === INCOMING TWILIO WEBHOOK ===");
+  console.log("From:", req.body?.From || req.query?.From || "Unknown");
+  console.log("To:", req.body?.To || req.query?.To || "Unknown");
+  console.log("CallSid:", req.body?.CallSid || req.query?.CallSid || "Unknown");
+  console.log("PUBLIC_URL:", PUBLIC_URL);
+  
   const wsUrl = new URL(PUBLIC_URL);
   wsUrl.protocol = "wss:";
   wsUrl.pathname = `/call`;
+
+  console.log("Generated WebSocket URL:", wsUrl.toString());
 
   // XML-escape the URL to prevent XML parsing errors
   const escapedUrl = wsUrl.toString()
@@ -183,6 +191,10 @@ app.all("/twiml", validateTwilioSignature, (req, res) => {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
   const twimlContent = twimlTemplate.replace("{{WS_URL}}", escapedUrl);
+  
+  console.log("Sending TwiML response to Twilio");
+  console.log("===================================\n");
+  
   res.type("text/xml").send(twimlContent);
 });
 

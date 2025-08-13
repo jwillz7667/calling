@@ -116,7 +116,9 @@ const EventLogPanel: React.FC<EventLogPanelProps> = ({ ws }) => {
       "error": "❌",
       "rate_limits.updated": "⚠️",
       "openai.connection.established": "✅",
-      "model.websocket_error": "❌"
+      "model.websocket_error": "❌",
+      "twilio.stream.started": "📞",
+      "twilio.stream.ended": "📵"
     };
     return emojiMap[type] || "📡";
   };
